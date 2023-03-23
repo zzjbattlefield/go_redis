@@ -5,7 +5,10 @@ import (
 	databaseface "go_redis/interface/database"
 	"go_redis/lib/logger"
 	"go_redis/lib/utils"
+	"go_redis/resp/connection"
+	"go_redis/resp/parser"
 	"go_redis/resp/reply"
+	"io"
 	"os"
 	"strconv"
 )
@@ -81,5 +84,33 @@ func (aof *AofHandler) handleAof() {
 }
 
 func (aof *AofHandler) LoadAof() {
-
+	file, err := os.Open(aof.aofFileName)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	defer file.Close()
+	ch := parser.ParserStream(file)
+	fackConn := &connection.Connection{}
+	for payload := range ch {
+		if payload.Err != nil {
+			if payload.Err == io.EOF {
+				break
+			}
+			if payload.Data == nil {
+				logger.Error("empty Data")
+				continue
+			}
+			logger.Error(payload.Err)
+			continue
+		}
+		multiBulkReply, ok := payload.Data.(*reply.MultiBulkReply)
+		if !ok {
+			logger.Error("wrong type", payload.Data.ToByte())
+			continue
+		}
+		if rep := aof.database.Exec(fackConn, multiBulkReply.Args); reply.IsErrorReply(rep) {
+			logger.Error(rep)
+		}
+	}
 }
