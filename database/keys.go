@@ -4,6 +4,8 @@ import (
 	"go_redis/interface/resp"
 	"go_redis/lib/utils"
 	"go_redis/resp/reply"
+	"strconv"
+	"time"
 )
 
 func init() {
@@ -13,6 +15,7 @@ func init() {
 	RegisterCommand("type", execType, 2)
 	RegisterCommand("rename", execRename, 3)
 	RegisterCommand("renamenx", execRenameNX, 3)
+	RegisterCommand("expire", execExpire, 3)
 }
 
 // DEL
@@ -91,6 +94,25 @@ func execRenameNX(db *DB, args [][]byte) resp.Reply {
 		db.Remove(oldName)
 		db.addAof(utils.ToCmdLine2("renamenx", args...))
 	}
+	return reply.MakeIntReply(1)
+}
+
+func execExpire(db *DB, args [][]byte) resp.Reply {
+	var (
+		key string
+		ttl int64
+		err error
+	)
+	key = string(args[0])
+	if ttl, err = strconv.ParseInt(string(args[1]), 10, 64); err != nil {
+		return reply.MakeErrReply("invalid expire time in set")
+	}
+	d := time.Duration(ttl) * time.Second
+	if _, ok := db.GetEntity(key); !ok {
+		return reply.MakeIntReply(0)
+	}
+	expireAt := time.Now().Add(d)
+	db.Expire(key, expireAt)
 	return reply.MakeIntReply(1)
 }
 

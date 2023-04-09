@@ -4,19 +4,24 @@ import (
 	"go_redis/datastruct/dict"
 	"go_redis/interface/database"
 	"go_redis/interface/resp"
+	"go_redis/lib/logger"
+	"go_redis/lib/timewheel"
 	"go_redis/resp/reply"
 	"strings"
+	"time"
 )
 
 type DB struct {
 	index  int
 	data   dict.Dict
+	ttlMap dict.Dict
 	addAof func(CmdLine)
 }
 
 func MakeDB() *DB {
 	return &DB{
 		data:   dict.MakeSyncDict(),
+		ttlMap: dict.MakeSyncDict(),
 		addAof: func(cmdline CmdLine) {},
 	}
 }
@@ -87,4 +92,20 @@ func (db *DB) Removes(keys ...string) (deleted int) {
 
 func (db *DB) Flush() {
 	db.data.Clear()
+}
+
+func (db *DB) Expire(key string, expireTime time.Time) {
+	db.ttlMap.Put(key, expireTime)
+	timewheel.At(expireTime, key, func() {
+		logger.Info("expire key:", key)
+		rawExpireTime, ok := db.ttlMap.Get(key)
+		if !ok {
+			return
+		}
+		expireTime := rawExpireTime.(time.Time)
+		if isExpired := time.Now().After(expireTime); isExpired {
+			db.Remove(key)
+			logger.Info("expired! remove key:", key)
+		}
+	})
 }
