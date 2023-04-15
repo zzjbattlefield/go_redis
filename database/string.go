@@ -5,6 +5,9 @@ import (
 	"go_redis/interface/resp"
 	"go_redis/lib/utils"
 	"go_redis/resp/reply"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // GET
@@ -18,16 +21,76 @@ func execGet(db *DB, args [][]byte) resp.Reply {
 	}
 }
 
+const (
+	upsertPolicy = iota //default set
+	insertPolict        // set nx
+	updatePolicy        // set xx
+)
+
+const unlimitTTL int64 = 0
+
 // SET
 func execSet(db *DB, args [][]byte) resp.Reply {
 	key := string(args[0])
 	val := args[1]
+	policy := upsertPolicy
+	ttl := unlimitTTL
+	if len(args) > 2 {
+		for i := 2; i < len(args); i++ {
+			arg := strings.ToUpper(string(args[i]))
+			if arg == "EX" {
+				if ttl != unlimitTTL || i+1 > len(args) {
+					return &reply.SyntaxErrReply{}
+				}
+				ttlArg, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+				if err != nil {
+					return &reply.SyntaxErrReply{}
+				}
+				ttl = ttlArg * 1000 //转成毫秒
+				i++
+			} else if arg == "PX" {
+				if ttl != unlimitTTL || i+1 > len(args) {
+					return &reply.SyntaxErrReply{}
+				}
+				ttlArg, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+				if err != nil {
+					return &reply.SyntaxErrReply{}
+				}
+				ttl = ttlArg
+				i++
+			} else if arg == "NX" {
+				if policy == updatePolicy {
+					return &reply.SyntaxErrReply{}
+				}
+				policy = insertPolict
+			} else if arg == "XX" {
+				if policy == insertPolict {
+					return &reply.SyntaxErrReply{}
+				}
+				policy = updatePolicy
+			}
+		}
+	}
 	dataEntity := &database.DataEntity{
 		Data: val,
 	}
-	db.PutEntity(key, dataEntity)
-	db.addAof(utils.ToCmdLine2("set", args...))
-	return reply.MakeOkReply()
+	var result int
+	switch policy {
+	case upsertPolicy:
+		result = db.PutEntity(key, dataEntity)
+	case insertPolict:
+		result = db.PutIfAbsent(key, dataEntity)
+	case updatePolicy:
+		result = db.PutIfExists(key, dataEntity)
+	}
+	if result > 0 {
+		if ttl != unlimitTTL {
+			//设置过期时间
+			db.Expire(key, time.Now().Add(time.Duration(ttl)*time.Millisecond))
+		}
+		return reply.MakeOkReply()
+	}
+	return reply.MakeNullBulkReply()
 }
 
 // SETNX
@@ -70,7 +133,7 @@ func execStrLen(db *DB, args [][]byte) resp.Reply {
 
 func init() {
 	RegisterCommand("GET", execGet, 2)
-	RegisterCommand("SET", execSet, 3)
+	RegisterCommand("SET", execSet, -3)
 	RegisterCommand("SETNX", execSetNx, 3)
 	RegisterCommand("GETSET", execGetSet, 3)
 	RegisterCommand("STRLEN", execStrLen, 2)

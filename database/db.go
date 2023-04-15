@@ -55,9 +55,8 @@ func validateArity(arity int, cmdArgs [][]byte) bool {
 }
 
 func (db *DB) GetEntity(key string) (data *database.DataEntity, ok bool) {
-	var raw any
-	raw, ok = db.data.Get(key)
-	if !ok {
+	raw, exists := db.data.Get(key)
+	if !exists || db.isExpired(key) {
 		return
 	}
 	data, ok = raw.(*database.DataEntity)
@@ -108,4 +107,17 @@ func (db *DB) Expire(key string, expireTime time.Time) {
 			logger.Info("expired! remove key:", key)
 		}
 	})
+}
+
+func (db *DB) isExpired(key string) bool {
+	rawExpireTime, exist := db.ttlMap.Get(key)
+	if !exist {
+		return false
+	}
+	expireTime, _ := rawExpireTime.(time.Time)
+	if isExpire := time.Now().After(expireTime); isExpire {
+		logger.Info("delete expired key:", key)
+		db.data.Remove(key)
+	}
+	return true
 }

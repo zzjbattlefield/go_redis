@@ -42,7 +42,7 @@ func MakeSyntaxErrReply() *SyntaxErrReply {
 	return theSyntaxErrReply
 }
 
-func (r *SyntaxErrReply) ToBytes() []byte {
+func (r *SyntaxErrReply) ToByte() []byte {
 	return syntaxErrBytes
 }
 
@@ -55,7 +55,7 @@ type WrongTypeErrReply struct{}
 
 var wrongTypeErrBytes = []byte("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n")
 
-func (r *WrongTypeErrReply) ToBytes() []byte {
+func (r *WrongTypeErrReply) ToByte() []byte {
 	return wrongTypeErrBytes
 }
 
@@ -69,7 +69,7 @@ type ProtocolErrReply struct {
 	Msg string
 }
 
-func (r *ProtocolErrReply) ToBytes() []byte {
+func (r *ProtocolErrReply) ToByte() []byte {
 	return []byte("-ERR Protocol error: '" + r.Msg + "'\r\n")
 }
 

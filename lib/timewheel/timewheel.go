@@ -119,7 +119,8 @@ func (t *timeWheel) scanAndRunTask(l *list.List) {
 					log.Println(err)
 				}
 			}()
-			task.job()
+			job := task.job
+			job()
 		}()
 		next := e.Next()
 		l.Remove(e)
