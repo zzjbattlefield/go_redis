@@ -11,8 +11,8 @@ import (
 )
 
 type Database struct {
-	dbSet      []*DB
-	aofHandler *aof.AofHandler
+	dbSet     []*DB
+	persister *aof.Persister
 }
 
 func NewDatabase() *Database {
@@ -25,17 +25,11 @@ func NewDatabase() *Database {
 		database.dbSet[index] = db
 	}
 	if config.Properties.AppendOnly {
-		aofHandler, err := aof.NewAofHandler(database)
+		persister, err := aof.NewPersister(database, config.Properties.AppendFilename, true, "everysec")
 		if err != nil {
 			panic(err)
 		}
-		database.aofHandler = aofHandler
-		for _, db := range database.dbSet {
-			sdb := db
-			sdb.addAof = func(cmdline CmdLine) {
-				database.aofHandler.AddAof(sdb.index, cmdline)
-			}
-		}
+		database.bindPersister(persister)
 	}
 	return database
 }

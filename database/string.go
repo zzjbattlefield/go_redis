@@ -1,6 +1,7 @@
 package database
 
 import (
+	"go_redis/aof"
 	"go_redis/interface/database"
 	"go_redis/interface/resp"
 	"go_redis/lib/utils"
@@ -86,7 +87,16 @@ func execSet(db *DB, args [][]byte) resp.Reply {
 	if result > 0 {
 		if ttl != unlimitTTL {
 			//设置过期时间
-			db.Expire(key, time.Now().Add(time.Duration(ttl)*time.Millisecond))
+			expiredTime := time.Now().Add(time.Duration(ttl) * time.Millisecond)
+			db.Expire(key, expiredTime)
+			db.addAof(CmdLine{
+				[]byte("set"),
+				args[0],
+				args[1],
+			})
+			db.addAof(aof.MakeExpireCmd(key, expiredTime))
+		} else {
+			db.addAof(utils.ToCmdLine3("set", args...))
 		}
 		return reply.MakeOkReply()
 	}
@@ -101,7 +111,7 @@ func execSetNx(db *DB, args [][]byte) resp.Reply {
 		Data: val,
 	}
 	result := db.PutIfAbsent(key, dataEntity)
-	db.addAof(utils.ToCmdLine2("setnx", args...))
+	db.addAof(utils.ToCmdLine3("setnx", args...))
 	return reply.MakeIntReply(int64(result))
 }
 
@@ -115,7 +125,7 @@ func execGetSet(db *DB, args [][]byte) resp.Reply {
 		return reply.MakeNullBulkReply()
 	} else {
 		entityByte := entity.Data.([]byte)
-		db.addAof(utils.ToCmdLine2("getset", args...))
+		db.addAof(utils.ToCmdLine3("getset", args...))
 		return reply.MakeBulkReply(entityByte)
 	}
 }
