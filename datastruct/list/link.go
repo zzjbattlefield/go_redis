@@ -33,16 +33,17 @@ func (l *Link) Add(val interface{}) {
 
 func (l *Link) find(index int) (n *node) {
 	if index < l.len/2 {
+		n = l.first
 		for i := 0; i < index; i++ {
 			n = n.next
 		}
 	} else {
-		n := l.last
+		n = l.last
 		for i := l.len - 1; i > index; i-- {
 			n = n.prev
 		}
 	}
-	return n
+	return
 }
 
 func (l *Link) Get(index int) (val interface{}) {
@@ -52,7 +53,8 @@ func (l *Link) Get(index int) (val interface{}) {
 	if index < 0 || index >= l.len {
 		panic("index out of range")
 	}
-	return l.find(index).value
+	n := l.find(index)
+	return n.value
 }
 
 func (l *Link) Set(index int, val interface{}) {
@@ -70,7 +72,7 @@ func (l *Link) Insert(index int, val interface{}) {
 	if l == nil {
 		panic("Link is nil")
 	}
-	if index < 0 || index >= l.len {
+	if index < 0 || index > l.len {
 		panic("index out of range")
 	}
 	if index == l.len {
@@ -173,14 +175,17 @@ func (l *Link) ReverseRemoveByVal(expected Expected, count int) (reCount int) {
 	if l.last == nil {
 		return
 	}
-	for n := l.last; n.prev != nil; n = n.prev {
-		if expected(n.value) {
-			l.delete(n)
+	node := l.last
+	for node != nil {
+		preNode := node.prev
+		if expected(node.value) {
+			l.delete(node)
 			reCount++
 			if reCount == count {
 				break
 			}
 		}
+		node = preNode
 	}
 	return
 }
@@ -192,11 +197,14 @@ func (l *Link) RemoveAllByVal(expected Expected) (rmCount int) {
 	if l.first == nil {
 		return
 	}
-	for n := l.first; n.next != nil; n = n.next {
+	n := l.first
+	for n != nil {
+		nextNode := n.next
 		if expected(n.value) {
 			l.delete(n)
 			rmCount++
 		}
+		n = nextNode
 	}
 	return
 }
@@ -243,7 +251,7 @@ func (l *Link) Range(start int, end int) []interface{} {
 		panic("end out of range")
 	}
 	vals := make([]interface{}, end-start)
-	node := l.find(start)
+	node := l.first
 	index := 0
 	i := 0
 	for node != nil {
