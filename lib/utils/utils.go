@@ -47,3 +47,12 @@ func BytesEquals(a []byte, b []byte) bool {
 	}
 	return true
 }
+
+func Equals(a interface{}, b interface{}) bool {
+	sliceA, okA := a.([]byte)
+	sliceB, okB := b.([]byte)
+	if okA && okB {
+		return BytesEquals(sliceA, sliceB)
+	}
+	return a == b
+}
